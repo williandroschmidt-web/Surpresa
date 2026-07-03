@@ -1,9 +1,9 @@
-                <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Surpresa Cinemática</title>
+    <title>Surpresa Gravitacional</title>
     <style>
         * {
             box-sizing: border-box;
@@ -18,7 +18,7 @@
             width: 100%;
             height: 100%;
             overflow: hidden;
-            background: #000;
+            background: #050508;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
         }
 
@@ -43,17 +43,16 @@
             justify-content: space-between;
             padding: 2.5rem;
             pointer-events: none;
-            box-sizing: border-box;
         }
 
         .title {
             color: #fff;
-            font-size: 1.2rem;
-            font-weight: 400;
-            letter-spacing: 6px;
+            font-size: 1.1rem;
+            font-weight: 300;
+            letter-spacing: 5px;
             text-transform: uppercase;
             text-align: center;
-            opacity: 0.5;
+            opacity: 0.6;
         }
 
         .instruction {
@@ -63,134 +62,199 @@
             text-transform: uppercase;
             text-align: center;
             opacity: 0.4;
-            animation: pulse 2.5s infinite alternate;
+            animation: bounce 2s infinite ease-in-out;
             margin-bottom: env(safe-area-inset-bottom, 0px);
         }
 
-        @keyframes pulse {
-            0% { opacity: 0.2; transform: scale(0.98); }
-            100% { opacity: 0.6; transform: scale(1); }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
         }
     </style>
 </head>
 <body>
 
-    <canvas id="renderCanvas"></canvas>
+    <canvas id="physicsCanvas"></canvas>
 
     <div class="ui-container">
-        <div class="title">Geometria Viva</div>
-        <div class="instruction">Toque e segure em qualquer lugar</div>
+        <div class="title">Matéria Escura</div>
+        <div class="instruction">Incline o celular ou arraste o dedo</div>
     </div>
 
     <script>
-        const canvas = document.getElementById('renderCanvas');
+        const canvas = document.getElementById('physicsCanvas');
         const ctx = canvas.getContext('2d');
 
         let width = canvas.width = window.innerWidth;
         let height = canvas.height = window.innerHeight;
 
-        let originX = width / 2;
-        let originY = height / 2;
-        let targetX = width / 2;
-        let targetY = height / 2;
+        let gravityX = 0;
+        let gravityY = 0.4; // Gravidade padrão para baixo
         
-        let angle = 0;
-        let intensity = 0;
-        let isPressing = false;
+        let balls = [];
+        const ballCount = Math.min(60, Math.floor((width * height) / 12000)); // Adaptativo para o tamanho da tela
 
         window.addEventListener('resize', () => {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
         });
 
-        // Suporte Mobile (Touch)
+        class Ball {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.radius = Math.random() * 12 + 8;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5;
+                this.friction = 0.98;
+                this.bounce = 0.75;
+                this.color = `hsl(${Math.random() * 40 + 180}, 90%, ${Math.random() * 20 + 50}%)`;
+            }
+
+            update() {
+                this.vx += gravityX;
+                this.vy += gravityY;
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // Colisões com as bordas da tela mobile
+                if (this.x + this.radius > width) {
+                    this.x = width - this.radius;
+                    this.vx *= -this.bounce;
+                } else if (this.x - this.radius < 0) {
+                    this.x = this.radius;
+                    this.vx *= -this.bounce;
+                }
+
+                if (this.y + this.radius > height) {
+                    this.y = height - this.radius;
+                    this.vy *= -this.bounce;
+                } else if (this.y - this.radius < 0) {
+                    this.y = this.radius;
+                    this.vy *= -this.bounce;
+                }
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                
+                // Efeito de brilho interno sutil
+                ctx.beginPath();
+                ctx.arc(this.x - this.radius*0.3, this.y - this.radius*0.3, this.radius * 0.2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+                ctx.fill();
+            }
+        }
+
+        // Criar bolinhas iniciais espalhadas
+        for (let i = 0; i < ballCount; i++) {
+            balls.push(new Ball(Math.random() * width, Math.random() * height));
+        }
+
+        // Interação por toque (Muda a gravidade temporariamente na direção do arrasto)
+        let isDrawing = false;
+        
+        const handleInteraction = (clientX, clientY) => {
+            gravityX = (clientX - width / 2) * 0.005;
+            gravityY = (clientY - height / 2) * 0.005;
+
+            // Empurra as esferas próximas ao toque
+            balls.forEach(ball => {
+                let dx = ball.x - clientX;
+                let dy = ball.y - clientY;
+                let dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < 120) {
+                    ball.vx += (dx / dist) * 2;
+                    ball.vy += (dy / dist) * 2;
+                }
+            });
+        };
+
         window.addEventListener('touchstart', (e) => {
-            isPressing = true;
-            const touch = e.touches[0];
-            targetX = touch.clientX;
-            targetY = touch.clientY;
+            isDrawing = true;
+            handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
         });
 
         window.addEventListener('touchmove', (e) => {
-            const touch = e.touches[0];
-            targetX = touch.clientX;
-            targetY = touch.clientY;
+            if (isDrawing) handleInteraction(e.touches[0].clientX, e.touches[0].clientY);
         });
 
         window.addEventListener('touchend', () => {
-            isPressing = false;
+            isDrawing = false;
+            gravityX = 0;
+            gravityY = 0.4; // Reseta a gravidade para baixo
         });
 
-        // Suporte Desktop (Mouse)
-        window.addEventListener('mousedown', (e) => {
-            isPressing = true;
-            targetX = e.clientX;
-            targetY = e.clientY;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            targetX = e.clientX;
-            targetY = e.clientY;
-        });
-
-        window.addEventListener('mouseup', () => {
-            isPressing = false;
-        });
-
-        function drawScene() {
-            // Efeito de rastro (motion blur)
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.06)';
-            ctx.fillRect(0, 0, width, height);
-
-            // Interpolação suave para seguir o dedo do usuário
-            originX += (targetX - originX) * 0.1;
-            originY += (targetY - originY) * 0.1;
-
-            // Controla o crescimento/contração do efeito baseado no toque
-            if (isPressing) {
-                intensity += (100 - intensity) * 0.05;
-            } else {
-                intensity += (0 - intensity) * 0.03;
-            }
-
-            angle += 0.015;
-
-            const linesCount = 12;
-            const baseRadius = Math.min(width, height) * 0.2 + intensity;
-
-            for (let i = 0; i < linesCount; i++) {
-                const localAngle = angle + (i * (Math.PI * 2 / linesCount));
-                
-                const s1 = Math.sin(localAngle * 2) * 40;
-                const c1 = Math.cos(localAngle * 3) * 40;
-
-                const x1 = originX + Math.cos(localAngle) * (baseRadius + s1);
-                const y1 = originY + Math.sin(localAngle) * (baseRadius + c1);
-
-                const x2 = originX + Math.cos(localAngle + Math.PI) * (baseRadius / 2);
-                const y2 = originY + Math.sin(localAngle + Math.PI) * (baseRadius / 2);
-
-                // Gradiente cromático baseado na posição e rotação
-                const hue = (u) => (angle * 50 + i * (360 / linesCount)) % 360;
-                
-                ctx.beginPath();
-                ctx.moveTo(x1, y1);
-                ctx.quadraticCurveTo(originX, originY, x2, y2);
-                
-                ctx.strokeStyle = `hsla(${hue()}, 80%, 60%, ${0.3 + (intensity / 200)})`;
-                ctx.lineWidth = 2 + (intensity / 30);
-                ctx.shadowBlur = intensity > 10 ? 15 : 0;
-                ctx.shadowColor = `hsla(${hue()}, 80%, 60%, 0.5)`;
-                
-                ctx.stroke();
-            }
-            
-            ctx.shadowBlur = 0; // Reseta o shadow para performance
-
-            requestAnimationFrame(drawScene);
+        // Suporte a Giroscópio / Acelerômetro (Se o usuário permitir no mobile)
+        if (window.DeviceOrientationEvent) {
+            window.addEventListener('deviceorientation', (e) => {
+                if (e.gamma !== null && e.beta !== null) {
+                    // Mapeia a inclinação do celular para os eixos físicos do canvas
+                    gravityX = e.gamma * 0.02;
+                    gravityY = e.beta * 0.02;
+                }
+            }, true);
         }
 
-        drawScene();
+        // Suporte para Mouse (Desktop)
+        window.addEventListener('mousedown', (e) => { isDrawing = true; handleInteraction(e.clientX, e.clientY); });
+        window.addEventListener('mousemove', (e) => { if (isDrawing) handleInteraction(e.clientX, e.clientY); });
+        window.addEventListener('mouseup', () => { isDrawing = false; gravityX = 0; gravityY = 0.4; });
+
+        function resolveCollisions() {
+            for (let i = 0; i < balls.length; i++) {
+                for (let j = i + 1; j < balls.length; j++) {
+                    let dx = balls[j].x - balls[i].x;
+                    let dy = balls[j].y - balls[i].y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+                    let minDistance = balls[i].radius + balls[j].radius;
+
+                    if (distance < minDistance) {
+                        // Código básico de física de colisão elástica entre círculos
+                        let overlap = minDistance - distance;
+                        let nx = dx / distance;
+                        let ny = dy / distance;
+
+                        // Separa as esferas para não grudarem
+                        balls[i].x -= nx * overlap * 0.5;
+                        balls[i].y -= ny * overlap * 0.5;
+                        balls[j].x += nx * overlap * 0.5;
+                        balls[j].y += ny * overlap * 0.5;
+
+                        // Inverte as velocidades baseadas no impacto
+                        let kx = balls[i].vx - balls[j].vx;
+                        let ky = balls[i].vy - balls[j].vy;
+                        let p = 2 * (nx * kx + ny * ky) / 2;
+
+                        balls[i].vx -= p * nx * 0.8;
+                        balls[i].vy -= p * ny * 0.8;
+                        balls[j].vx += p * nx * 0.8;
+                        balls[j].vy += p * ny * 0.8;
+                    }
+                }
+            }
+        }
+
+        function loop() {
+            ctx.fillStyle = 'rgba(5, 5, 8, 0.3)'; // Rastro preto azulado profundo
+            ctx.fillRect(0, 0, width, height);
+
+            resolveCollisions();
+
+            balls.forEach(ball => {
+                ball.update();
+                ball.draw();
+            });
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
     </script>
 </body>
 </html>
