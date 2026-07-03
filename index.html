@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Surpresa Interativa</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0a0a16;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .interface {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2rem;
+            pointer-events: none;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 1.5rem;
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-align: center;
+            opacity: 0.8;
+            animation: fadeIn 2s ease-in-out;
+        }
+
+        .hint {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+            letter-spacing: 1px;
+            text-align: center;
+            margin-bottom: env(safe-area-inset-bottom, 1rem);
+            animation: pulse 2s infinite ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 0.8; transform: translateY(0); }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 0.7; }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="visualCanvas"></canvas>
+
+    <div class="interface">
+        <h1>Exploração Fluida</h1>
+        <div class="hint">Toque e arraste na tela</div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('visualCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let particles = [];
+        let width = canvas.width = window.innerWidth;
+        let height = canvas.height = window.innerHeight;
+
+        const colors = [
+            'rgba(255, 99, 132, ',
+            'rgba(54, 162, 235, ',
+            'rgba(255, 206, 86, ',
+            'rgba(75, 192, 192, ',
+            'rgba(153, 102, 255, ',
+            'rgba(255, 159, 64, '
+        ];
+
+        window.addEventListener('resize', () => {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+        });
+
+        class Particle {
+            constructor(x, y, isStatic = false) {
+                this.x = x;
+                this.y = y;
+                this.baseRadius = Math.random() * 3 + 2;
+                this.radius = this.baseRadius;
+                this.colorBase = colors[Math.floor(Math.random() * colors.length)];
+                this.vx = isStatic ? 0 : (Math.random() - 0.5) * 1.5;
+                this.vy = isStatic ? 0 : (Math.random() - 0.5) * 1.5;
+                this.alpha = 1;
+                this.decay = isStatic ? 0 : Math.random() * 0.015 + 0.005;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.colorBase + this.alpha + ')';
+                ctx.fill();
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                if (this.alpha > 0) {
+                    this.alpha -= this.decay;
+                }
+                this.radius = this.baseRadius * this.alpha;
+            }
+        }
+
+        // Inicializa algumas partículas fixas no fundo
+        function initBackground() {
+            for (let i = 0; i < 40; i++) {
+                let p = new Particle(Math.random() * width, Math.random() * height, true);
+                p.alpha = Math.random() * 0.5 + 0.2;
+                p.decay = 0;
+                particles.push(p);
+            }
+        }
+
+        function spawnParticles(x, y, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push(new Particle(x, y));
+            }
+        }
+
+        // Eventos de toque para Mobile
+        window.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            spawnParticles(touch.clientX, touch.clientY, 15);
+        });
+
+        window.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            spawnParticles(touch.clientX, touch.clientY, 3);
+        });
+
+        // Suporte para testes no Desktop (Mouse)
+        window.addEventListener('mousedown', (e) => {
+            spawnParticles(e.clientX, e.clientY, 15);
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1) {
+                spawnParticles(e.clientX, e.clientY, 3);
+            }
+        });
+
+        function animate() {
+            ctx.fillStyle = 'rgba(10, 10, 22, 0.15)';
+            ctx.fillRect(0, 0, width, height);
+
+            // Conectar partículas próximas com linhas sutis
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    let dx = particles[i].x - particles[j].x;
+                    let dy = particles[i].y - particles[j].y;
+                    let distance = Math.sqrt(dx * dx + dy * dy);
+
+                    if (distance < 90) {
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        let combinedAlpha = Math.min(particles[i].alpha, particles[j].alpha) * (1 - distance / 90) * 0.2;
+                        ctx.strokeStyle = `rgba(255, 255, 255, ${combinedAlpha})`;
+                        ctx.lineWidth = 0.8;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+
+                if (particles[i].alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // Mantém sempre o fundo preenchido
+            if (particles.filter(p => p.vx === 0).length < 30) {
+                let p = new Particle(Math.random() * width, Math.random() * height, true);
+                p.alpha = Math.random() * 0.5 + 0.1;
+                p.decay = 0;
+                particles.push(p);
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        initBackground();
+        animate();
+    </script>
+</body>
+</html>
+
